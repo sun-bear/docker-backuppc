@@ -1,0 +1,12 @@
+#!/usr/bin/with-contenv bash
+
+source /assets/functions/00-container
+
+PROCESS_NAME="fcgiwrap"
+
+check_container_initialized
+check_service_initialized init 10-nginx
+liftoff
+
+print_info "Starting fcgiwrap"
+silent exec /usr/bin/spawn-fcgi  -s /var/run/fcgiwrap.sock -P /var/run/fcgiwrap.pid -u backuppc -g backuppc -U backuppc -G backuppc -M 660 -n -- /usr/bin/fcgiwrap
