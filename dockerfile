@@ -118,11 +118,11 @@ RUN \
 # # Get BackupPC, it will be installed at runtime to allow dynamic upgrade of existing config/pool
 RUN \
 	echo "**** COMPILE AND EXTRACT BackupPC ****" && \
-	mkdir -p /usr/src/BackupPC && \
-	curl -ssL https://github.com/backuppc/backuppc/releases/download/$BACKUPPC_VERSION/BackupPC-$BACKUPPC_VERSION.tar.gz | tar x -vz -f - --strip=1 -C /usr/local/BackupPC && \
-	# curl -o /usr/src/BackupPC-$BACKUPPC_VERSION.tar.gz -L https://github.com/backuppc/backuppc/releases/download/$BACKUPPC_VERSION/BackupPC-$BACKUPPC_VERSION.tar.gz | tar x -vz -f /usr/src/BackupPC-$BACKUPPC_VERSION.tar.gz --strip=1 -C /usr/src/BackupPC && \
+	# mkdir -p /usr/src/BackupPC && \
+	curl -o /usr/src/BackupPC.tar.gz -L https://github.com/backuppc/backuppc/releases/download/$BACKUPPC_VERSION/BackupPC-$BACKUPPC_VERSION.tar.gz  && \
 	# rm -rf /usr/src/BackupPC-$BACKUPPC_VERSION.tar.gz && \
-    cp -Rpfv /usr/local/BackupPC /usr/src/BackupPC && \
+	# curl -ssL https://github.com/backuppc/backuppc/releases/download/$BACKUPPC_VERSION/BackupPC-$BACKUPPC_VERSION.tar.gz | tar x -vz -f - --strip=1 -C /usr/local/BackupPC && \
+    # cp -Rpfv /usr/local/BackupPC /usr/src/BackupPC && \
 	\
     # # Prepare backuppc home
     mkdir -p /home/backuppc && \
