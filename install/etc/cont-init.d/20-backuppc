@@ -217,9 +217,11 @@ if [ -f /firstrun ]; then
 
     # # EXTRACT BACKUPPC
     # tar x --strip=1 -f BackupPC-"${BACKUPPC_VERSION}".tar.gz -C /usr/local/BackupPC
-    # cd /usr/src/BackupPC-"${BACKUPPC_VERSION}"
-    # cp -Rpf /usr/src/BackupPC-"${BACKUPPC_VERSION}" /usr/local/src
-
+    # cd /usr/src/BackupPC
+    # cp -Rpf /usr/src/BackupPC /usr/local/src
+	mkdir -p /usr/src/BackupPC && cd /usr/src/BackupPC
+	tar x -vz -f /usr/src/BackupPC.tar.gz --strip=1 -C /usr/src/BackupPC
+    cp -Rpfv /usr/src/BackupPC /usr/local/BackupPC
 fi
 
 # # CONFIGURE WEB UI ACCESS
