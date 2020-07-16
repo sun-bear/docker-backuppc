@@ -1,0 +1,321 @@
+#!/usr/bin/with-contenv bash
+
+source /assets/functions/00-container
+prepare_service
+PROCESS_NAME="backuppc"
+
+# print_info "CONTAINER INITIALIZATION BEGIN"
+
+# # SET DEFAULTS
+BPC_SSH_PORT=${BPC_SSH_PORT:-22}
+
+BACKUPPC_UUID=${BACKUPPC_UUID:-1000}
+BACKUPPC_GUID=${BACKUPPC_GUID:-1000}
+
+BACKUPPC_WEB_USER=${BACKUPPC_WEB_USER:-"backuppc"}
+BACKUPPC_WEB_PASSWD=${BACKUPPC_WEB_PASSWD:-"password"}
+
+# # CREATE BACKUPPC USER/GROUP IF NEEDED
+if [ -z ${BACKUPPC_GROUPNAME} ]; then
+    addgroup -S -g ${BACKUPPC_GUID} backuppc
+    BACKUPPC_GROUPNAME=backuppc
+fi
+if [ -z ${BACKUPPC_USERNAME} ]; then
+    adduser -D -S -h /home/backuppc -G backuppc -u ${BACKUPPC_UUID} backuppc
+    BACKUPPC_USERNAME=backuppc
+else
+    adduser -D -S -h /home/backuppc -G backuppc -u ${BACKUPPC_UUID} backuppc
+fi
+chown ${BACKUPPC_USERNAME}:${BACKUPPC_GROUPNAME} /home/backuppc
+# /usr/sbin/usermod -a -G apache nginx
+adduser nginx ${BACKUPPC_GROUPNAME}
+# addgroup nginx ${BACKUPPC_GROUPNAME}
+BACKUPPC_ADMIN_USER=${BACKUPPC_USERNAME}
+
+################################################################
+
+if [ ! -e /var/lib/backuppc/.ssh ] ; then
+    mkdir -p /var/lib/backuppc/.ssh
+fi
+
+if [ ! -e /home/backuppc/.ssh ] ; then
+    mkdir -p /home/backuppc/.ssh
+fi
+
+if [ ! -e /www/logs/backuppc ]; then
+	mkdir -p /www/logs/backuppc
+fi
+
+if [ -d /etc/BackupPC ]; then
+    ln -s /etc/BackupPC /etc/backuppc
+fi
+
+################################
+
+if [ ! -e /home/backuppc/.ssh/config ] ; then
+    touch /home/backuppc/.ssh/config
+    chmod 0644 /home/backuppc/.ssh/config
+    echo "Host *"                                           >> /home/backuppc/.ssh/config
+    echo "      PasswordAuthentication yes"                 >> /home/backuppc/.ssh/config
+    echo "      # HostbasedAuthentication yes"              >> /home/backuppc/.ssh/config
+    echo "      UserKnownHostsFile=/dev/null"               >> /home/backuppc/.ssh/config
+    echo "      StrictHostKeyChecking no"                   >> /home/backuppc/.ssh/config
+    echo "      # Tunnel yes"                               >> /home/backuppc/.ssh/config
+    echo "      # IdentityFile /var/lib/backuppc/.ssh/id_rsa" >> /home/backuppc/.ssh/config
+    echo "      # Port ${BPC_SSH_PORT}"                       >> /home/backuppc/.ssh/config
+    echo "      "                                           >> /home/backuppc/.ssh/config
+    echo "      # CheckHostIP yes"                          >> /home/backuppc/.ssh/config
+    echo "      # AddressFamily any"                        >> /home/backuppc/.ssh/config
+    echo "      # ConnectTimeout 0"                         >> /home/backuppc/.ssh/config
+    echo "      # "                                         >> /home/backuppc/.ssh/config
+    echo "      # BatchMode yes"                            >> /home/backuppc/.ssh/config
+    echo "      # PermitLocalCommand yes"                   >> /home/backuppc/.ssh/config
+    echo "      # TunnelDevice any:any"                     >> /home/backuppc/.ssh/config
+    echo "      # VisualHostKey no"                         >> /home/backuppc/.ssh/config
+    echo "      # ProxyCommand ssh -q -W %h:%p example.com" >> /home/backuppc/.ssh/config
+    echo "      # ForwardAgent no"                          >> /home/backuppc/.ssh/config
+    echo "      # ForwardX11 no"                            >> /home/backuppc/.ssh/config
+    echo "      # EscapeChar ~"                             >> /home/backuppc/.ssh/config
+    echo "      # RekeyLimit 1G 1h"                         >> /home/backuppc/.ssh/config
+fi
+
+################################
+
+cp -pfv /home/backuppc/.ssh/config /etc/ssh/ssh_config
+cp -pfv /home/backuppc/.ssh/config /var/lib/backuppc/.ssh/config
+
+if [ ! -e /home/backuppc/.ssh/sshd_config ] ; then
+    touch /home/backuppc/.ssh/sshd_config
+    chmod 0644 /home/backuppc/.ssh/sshd_config
+    echo "Port  ${BPC_SSH_PORT}"                                >> /home/backuppc/.ssh/sshd_config
+    echo "      PasswordAuthentication yes"                     >> /home/backuppc/.ssh/sshd_config
+    echo "      # AddressFamily any"                            >> /home/backuppc/.ssh/sshd_config
+    echo "      # ListenAddress 0.0.0.0"                        >> /home/backuppc/.ssh/sshd_config
+    echo "      # ListenAddress ::"                             >> /home/backuppc/.ssh/sshd_config
+    echo "      AllowAgentForwarding yes"                       >> /home/backuppc/.ssh/sshd_config
+    echo "      HostKey           /home/backuppc/.ssh/host_key" >> /home/backuppc/.ssh/sshd_config
+    echo "      # # Logging"                                    >> /home/backuppc/.ssh/sshd_config
+    echo "      # SyslogFacility AUTH"                          >> /home/backuppc/.ssh/sshd_config
+    echo "      # LogLevel INFO"                                >> /home/backuppc/.ssh/sshd_config
+    echo "      # # Authentication"                             >> /home/backuppc/.ssh/sshd_config
+    echo "      ChallengeResponseAuthentication no"             >> /home/backuppc/.ssh/sshd_config
+    echo "      PermitRootLogin yes"                            >> /home/backuppc/.ssh/sshd_config
+    echo "      StrictModes no"                                 >> /home/backuppc/.ssh/sshd_config
+    echo "      # AuthorizedKeysFile  /root/.ssh/authorized_keys" >> /home/backuppc/.ssh/sshd_config
+    echo "      # AuthorizedKeysCommand none"                   >> /home/backuppc/.ssh/sshd_config
+    echo "      # AuthorizedKeysCommandUser nobody"             >> /home/backuppc/.ssh/sshd_config
+    echo "      # AuthorizedPrincipalsFile none"                >> /home/backuppc/.ssh/sshd_config
+    echo "      PermitEmptyPasswords yes"                       >> /home/backuppc/.ssh/sshd_config
+    echo "      # # Disable tunneled clear text passwords=no"   >> /home/backuppc/.ssh/sshd_config
+    echo "      # HostbasedAuthentication no"                   >> /home/backuppc/.ssh/sshd_config
+    echo "      # # Don't trust ~/.ssh/known_hosts=yes"         >> /home/backuppc/.ssh/sshd_config
+    echo "      # # Need host keys in /etc/ssh/ssh_known_hosts" >> /home/backuppc/.ssh/sshd_config
+    echo "      # IgnoreUserKnownHosts yes"                     >> /home/backuppc/.ssh/sshd_config
+    echo "      # PubkeyAuthentication yes"                     >> /home/backuppc/.ssh/sshd_config
+    echo "      # LoginGraceTime 2m"                            >> /home/backuppc/.ssh/sshd_config
+    echo "      # MaxAuthTries 6"                               >> /home/backuppc/.ssh/sshd_config
+    echo "      # MaxSessions 10"                               >> /home/backuppc/.ssh/sshd_config
+fi
+
+cp -pfv /home/backuppc/.ssh/sshd_config /etc/ssh/sshd_config
+cp -pfv /home/backuppc/.ssh/sshd_config /var/lib/backuppc/.ssh/sshd_config
+
+# Change to no to disable s/key passwords
+# ChallengeResponseAuthentication yes
+# AllowAgentForwarding yes
+# Feel free to re-enable these if your use case requires them.
+# AllowTcpForwarding yes
+# GatewayPorts yes
+# X11Forwarding yes
+# X11DisplayOffset 10
+# X11UseLocalhost yes
+# PermitTTY yes
+# PrintMotd yes
+# PrintLastLog yes
+# TCPKeepAlive yes
+# PermitUserEnvironment no
+# Compression delayed
+# ClientAliveInterval 0
+# ClientAliveCountMax 3
+# UseDNS yes
+# PidFile /run/sshd.pid
+# MaxStartups 10:30:100
+# PermitTunnel yes
+# ChrootDirectory none
+# VersionAddendum none
+# echo "backuppc ALL=NOPASSWD:" >> /usr/bin/rsync && \
+# touch /home/backuppc/.ssh/authorized_keys2
+# cat /home/backuppc/.ssh/id_rsa.pub >> /home/backuppc/authorized_keys2
+# touch /home/backuppc/.ssh/known_hosts
+# cat /home/backuppc/.ssh/id_rsa.pub >> /home/backuppc/.ssh/known_hosts
+
+################################
+
+if [ ! -e /var/lib/backuppc/.ssh/id_rsa ] ; then
+    # mkdir /var/lib/backuppc/.ssh
+    ssh-keygen -f /var/lib/backuppc/.ssh/server_rsa_key -t rsa -N "" -C "MININT-PETB45 BACKUPPC KEY"
+    # cp /etc/backuppc-ssh-config /var/lib/backuppc/.ssh/config
+    chown -R ${BACKUPPC_USERNAME}:${BACKUPPC_GROUPNAME} /var/lib/backuppc/.ssh
+    echo 
+    echo ======================================================================
+    echo 
+    echo "BACKUPPC - SERVER PUBLIC KEY"
+    echo 
+    cat /var/lib/backuppc/.ssh/server_rsa_key.pub
+    echo
+    echo ======================================================================
+    echo 
+fi
+
+# # GENERATE CRYPTOGRAPHIC KEY
+# # https://tinyurl.com/digitalocean-rsync-ssh
+# # https://tinyurl.com/stackoverflow-ssh
+# if [ ! -e /home/backuppc/.ssh/id_rsa ] ; then
+
+    # echo "GENERATING NEW KEYS"
+    # # mkdir /home/backuppc/.ssh
+    # ssh-keygen -q -f /root/.ssh/root_id -t rsa -N ""
+    # ssh-keyscan -v ${HOSTNAME} | /root/.ssh/known_hosts
+    # su ${BACKUPPC_USERNAME}
+        # ssh-keygen -q -f /home/backuppc/.ssh/host_key -t rsa -N ""
+        # scp -F /etc/ssh/ssh_config -i /home/backuppc/.ssh/host_key.pub root@${HOSTNAME}:/root/.ssh/
+# fi
+# if [ ! -e /home/backuppc/.ssh/authorized_keys ] ; then
+        # touch /home/backuppc/.ssh/authorized_keys
+        # echo "command='/usr/local/bin/rrsync /var/lib/backuppc' " > /home/backuppc/.ssh/authorized_keys # from='*',
+        # # from="srv1",command="/usr/local/bin/rrsync -ro /var/lib/backuppc",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding ssh-rsa {PUBLIC_KEY}
+        # scp -F /etc/ssh/ssh_config -i /root/.ssh/root_id.pub root@${HOSTNAME}:/home/backuppc/.ssh/root_id.pub
+        # ssh-keyscan ${HOSTNAME} | /home/backuppc/.ssh/known_hosts # cat ~/.ssh/client_id_rsa.pub >> ~/.ssh/known_hosts
+        # # ssh-copy-id -i /home/backuppc/.ssh/host_key -p ${BPC_SSH_PORT} root@${HOSTNAME}
+    # su
+        # rm -f /home/backuppc/.ssh/root_id.pub
+    # su ${BACKUPPC_USERNAME}
+        # chmod -R go-rwx /home/backuppc/.ssh
+    # chmod -R go-rwx /root/.ssh
+
+    # ssh -l root ${HOSTNAME} whoami 
+    # # sudo reload ssh
+# fi
+
+################################
+
+# echo "backuppc ALL=NOPASSWD:" >> /usr/bin/rsync && \
+
+# touch /home/backuppc/.ssh/authorized_keys2
+# cat /home/backuppc/.ssh/id_rsa.pub >> /home/backuppc/authorized_keys2
+# touch /home/backuppc/.ssh/known_hosts
+# cat /home/backuppc/.ssh/id_rsa.pub >> /home/backuppc/.ssh/known_hosts
+
+################################################################
+
+if [ -f /firstrun ]; then
+    echo "BEGIN FIRST RUN"
+    print_warn "First run of the container. BackupPC will be installed."
+    print_warn "If exist, configuration and data will be reused and upgraded as needed."
+
+    echo 'backuppc ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+    # # EXTRACT BACKUPPC
+    # tar x --strip=1 -f BackupPC-"${BACKUPPC_VERSION}".tar.gz -C /usr/local/BackupPC
+    # cd /usr/src/BackupPC-"${BACKUPPC_VERSION}"
+    # cp -Rpf /usr/src/BackupPC-"${BACKUPPC_VERSION}" /usr/local/src
+
+fi
+
+# # CONFIGURE WEB UI ACCESS
+configure_admin=""
+if [ ! -f /etc/backuppc/htpasswd ]; then
+    htpasswd -b -c /etc/backuppc/htpasswd ${BACKUPPC_WEB_USER} ${BACKUPPC_WEB_PASSWD}
+elif [ -n ${BACKUPPC_WEB_USER} -a -n ${BACKUPPC_WEB_PASSWD} ]; then
+    touch /etc/backuppc/htpasswd
+    htpasswd -b /etc/backuppc/htpasswd ${BACKUPPC_WEB_USER} ${BACKUPPC_WEB_PASSWD}
+fi
+
+configure_admin="--config-override CgiAdminUsers='${BACKUPPC_WEB_USER}'"
+
+cd /usr/local/BackupPC
+
+# # Install BackupPC (existing configuration will be reused and upgraded) ${$HOSTNAME} - silent
+perl configure.pl \
+    --batch \
+    --config-dir /etc/backuppc \
+    --cgi-dir /www/cgi-bin/BackupPC \
+    --data-dir /var/lib/backuppc \
+    --hostname ${HOSTNAME} \
+    --html-dir /www/html/BackupPC \
+    --html-dir-url /BackupPC \
+    --install-dir /usr/local/BackupPC \
+    --log-dir /www/logs/backuppc \
+    # --backuppc-user ${BACKUPPC_USERNAME}
+
+# # CONFIGURE WEB UI ACCESS
+sed -ie "s/^\$Conf{CgiAdminUsers}\s*=\s*'\w*'/\$Conf{CgiAdminUsers} = '${BACKUPPC_ADMIN_USER}'/g" /etc/backuppc/config.pl
+
+if [ -f /firstrun ]; then
+
+    ln -s /www/cgi-bin/BackupPC /www/cgi-bin/backuppc
+    ln -s /www/html/BackupPC /www/html/backuppc
+    ln -s /usr/local/BackupPC /usr/local/backuppc
+    ln -s /var/run/BackupPC /var/run/backuppc
+    ln -s /var/lib/backuppc /home/backuppc/backups
+
+    # ln -s /etc/nginx /etc/backuppc/nginx
+    ln -s /etc/ssh /etc/backuppc/ssh
+
+    ln -s /www/cgi-bin/BackupPC/BackupPC_Admin /www/cgi-bin/BackupPC/BackupPC_Admin.cgi
+    ln -s /www/cgi-bin/BackupPC/BackupPC_Admin /www/cgi-bin/BackupPC/index.cgi
+
+    # echo "backuppc ALL=NOPASSWD:" >> /usr/bin/rsync
+    rm -rf /firstrun
+    echo "END FIRST RUN"
+fi
+
+################################################################
+
+# sed -i "s/export NGINX_USER=www-data/export NGINX_USER=${BACKUPPC_USERNAME}/" /etc/nginx/envvars
+# sed -i "s/export NGINX_GROUP=www-data/export NGINX_GROUP=${BACKUPPC_GROUPNAME}/" /etc/nginx/envvars
+
+# # SET PROPER PERMISSIONS
+if [ ${RESET_PERMISSIONS} == 'TRUE' ] ; then
+    echo "SETTING PERMISSIONS"
+
+    chown -R backuppc:0 /www/logs/backuppc
+    chown -R backuppc:0 /etc/backuppc
+    chown -R backuppc:0 /var/lib/backuppc
+    chown -R backuppc:0 /home/backuppc
+    # chown -R backuppc:backuppc /home/backuppc/.ssh
+    chown -R backuppc:0 /home/backuppc/.ssh/*
+    chown -R 0644 /root/.ssh/*
+    # chown -R backuppc:0 /etc/ssh
+
+    # chmod 0700 /home/backuppc/.ssh
+    # chmod 0644 /etc/ssh/ssh_config
+    # chmod 0644 /etc/ssh/sshd_config
+
+    chmod -R 0644 /home/backuppc/.ssh/*
+    chmod -R 0644 /root/.ssh/*
+    # chmod 0644 /root/.ssh/config
+    # chmod 0644 /root/.ssh/sshd_config
+
+    chmod -R go-rwx /home/backuppc/.ssh
+    chmod -R go-rwx /root/.ssh
+
+    # rm /etc/ssh/ssh_config
+    # ln -s /home/backuppc/.ssh/config /etc/ssh/ssh_config
+    # ln -s /etc/ssh/sshd_config /home/backuppc/.ssh/sshd_config
+    # cp -pf /root/.ssh/config /etc/ssh/ssh_config
+    chmod 0644 /etc/backuppc/rsyncd.secrets
+    cp -pfv /etc/backuppc/rsyncd.secrets /etc/rsyncd.secrets
+
+    chmod 775 /etc/backuppc /var/lib/backuppc
+    chmod u-s /www/cgi-bin/BackupPC/BackupPC_Admin
+    chmod o+x+r /etc
+
+fi
+
+################################################################
+
+cd /home/backuppc
+
+print_info "CONTAINER INITIALIZATION COMPLETE"
+liftoff
