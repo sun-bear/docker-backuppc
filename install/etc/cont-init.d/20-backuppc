@@ -255,7 +255,7 @@ if [ -f /firstrun ]; then
 
     ln -s /www/cgi-bin/BackupPC /www/cgi-bin/backuppc
     ln -s /www/html/BackupPC /www/html/backuppc
-    ln -s /usr/local/BackupPC /usr/local/backuppc
+    # ln -s /usr/local/BackupPC /usr/local/backuppc
     ln -s /var/run/BackupPC /var/run/backuppc
     ln -s /var/lib/backuppc /home/backuppc/backups
 
